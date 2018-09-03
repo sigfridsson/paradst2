@@ -1,11 +1,11 @@
 # paradst2
-Parallax distorter 2
-====================
-Fullscreen (STe, without stabilization switches)
-Per-pixel x-y distortion (using STe HW-scroll per line)
-25 kHz sampled sound
-Code by Solomon of Gash/Corrosion/Sunshine productions
-                   [didn't release anything on Atari...]
+Parallax distorter 2  
+====================  
+Fullscreen (STe, without stabilization switches)  
+Per-pixel x-y distortion (using STe HW-scroll per line)  
+25 kHz sampled sound  
+Code by Solomon of Gash/Corrosion/Sunshine productions  
+                   [didn't release anything on Atari...]  
 Contact: andreas.sigfridsson@gmail.com
 
 (c) Copyright 2018 Andreas Sigfridsson
