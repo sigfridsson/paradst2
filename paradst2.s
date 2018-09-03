@@ -1855,6 +1855,14 @@ remove_top_border:
 	;; d7 overscan/screen address reset
 	;; move.w	#$2700,sr
 
+	subq.b	#1,d7
+	move.b	d7,$ffff8207.w ;16, back up to top (3 lines)
+	addq.b	#1,d7
+	lsr.b	#1,d3
+;	neg.b	d3
+	add.b	#(256-160)/2,d3
+	move.b	d3,$ffff820f.w ;3n  first line offset
+
 	move.w	#$2100,sr			;Enable HBL
 	stop	#$2100				;Wait for HBL
 	move.w	#$2700,sr			;Stop all interrupts
@@ -1877,15 +1885,15 @@ remove_top_border:
 
 	move.w	#$000,$ffff8240.w ;16
 
-	move.b	d7,$ffff8207.w ;16, back up to top (3 lines)
+;	move.b	d7,$ffff8207.w ;16, back up to top (3 lines)
 	;; d7 3->2
 	subq.w	#1,d7
-	dcb.w	27,$4e71			;Time for user to set up registers etc
+	dcb.w	27+6,$4e71			;Time for user to set up registers etc
 
 	move.l	(sp)+,a0
 
 	add.w	(a5)+,a6	  ;12c/3n
-	move.b	d3,$ffff8209.w ;3n  first line offset
+;	move.b	d3,$ffff8209.w ;3n  first line offset
 
 	jmp	(a0)
 return_from_callstack:	
