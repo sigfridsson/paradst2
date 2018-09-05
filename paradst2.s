@@ -522,7 +522,7 @@ preshift_sin:
 	move.l	#sin1024,a0
 	move.l	#sin1024_6,a1
 	move.l	#sin1024_15,a2
-	move.l	#hdist_pattern,a3
+	move.l	#vdist_pattern,a3
 	move.l	#sin1024,a4
 	moveq	#0,d4
 	move.w	#1024-1,d7
@@ -537,17 +537,25 @@ preshift_sin:
 
 	;;  hdist pattern
 	move.w	d4,d0
-	add.w	d0,d0
-	add.w	d4,d0		;3x frequency
+	add.w	d0,d0		;d0 2x
+	move.w	d0,d2
+	add.w	d2,d2		;d2 4x
+	add.w	d4,d0		;d0 3x frequency
+	add.w	d4,d2		;d2 5x frequency
 	add.w	#768*2,d0	;phase
 	and.w	#1023*2,d0
+	add.w	#0*2,d2	;phase
+	and.w	#1023*2,d2
 	move.w	(a4,d0.w),d0
+	move.w	(a4,d2.w),d2
 	move.w	(a4,d4.w),d1
-	asr.w	#1,d0
-	asr.w	#1,d1
+	asr.w	#1+2,d0
+	asr.w	#1+1,d1
+	asr.w	#1+3,d2
 	add.w	d1,d0
+	add.w	d2,d0
 	asr.w	#5,d0
-	asr.w	#6,d0
+	asr.w	#6-3,d0
 	add.w	d0,d0		;even
 	move.w	d0,(a3)+
 	
@@ -563,7 +571,7 @@ preshift_sin:
 	dbra	d7,.loop2
 
 ; one lap wrap protection
-	move.l	#hdist_pattern,a1
+	move.l	#vdist_pattern,a1
 	move.w	#1024-1,d7
 .loop3
 	move.w	(a1),1024*2(a1)
@@ -859,9 +867,9 @@ music_dma_exit:	clr.b	$ffff8901.w			;Kill sample playback
 		rts
 
 precalc_vdist:
-	move.l	#hdist_pattern,a0
+	move.l	#vdist_pattern,a0
 	move.l	#skipshift_mul,a3
-	move.l	#wrap_tab+3*FONTHEIGHT*2,a4
+	move.l	#wrap_tab+5*FONTHEIGHT*2,a4
 
 SUBPIX_IDX	set	0
 	rept	8
@@ -1174,7 +1182,7 @@ update_frame:
 .update:
 	move.b	#SLOMO,slomo_ctr
 
-	add.w	#2*5,vdist_idx
+	add.w	#-2*3,vdist_idx
 	and.w	#(8*VDIST_LEN-1)*2,vdist_idx
 	add.w	#4*3,hdist_idx
 	cmp.w	#HDIST_LEN*4,hdist_idx
@@ -1249,13 +1257,13 @@ update_frame:
 
 
 
-wrap_tab	ds.w	7*FONTHEIGHT
+wrap_tab	ds.w	11*FONTHEIGHT
 
 
 init_wrap_tab:
 	move.l	#wrap_tab,a1
-	move.w	#7*FONTHEIGHT-1,d7
-	move.w	#-3*FONTHEIGHT,d6
+	move.w	#11*FONTHEIGHT-1,d7
+	move.w	#-5*FONTHEIGHT,d6
 .loop
 	move.w	d6,d0
 
@@ -1658,6 +1666,7 @@ draw_scroll:
 	
 	move.l	#vdist,a2
 	move.w	vdist_idx,d0
+	ifeq	1
 	;; shuffle bits (3 LSBs to 'MSBs')
 	;; FIXME: this depends on VDIST_LEN=512/4
 	moveq	#3,d2
@@ -1671,6 +1680,23 @@ draw_scroll:
 	and.w	#$e,d1
 	lsl.w	#8,d1
 	or.w	d1,d0
+	else
+	;; shuffle bits (3 LSBs to 'MSBs')
+	;; FIXME: this depends on VDIST_LEN=512/4*2
+	moveq	#3,d2
+	sub.w	scroll_subidx_next_vbl,d2 ;FIXME vdist
+	lsl.w	#1+1,d2			  ;1 for word, 1 for 2 pixels per subscroll
+	add.w	d2,d0
+	;; addq.w	#4*2,d0
+	move.w	d0,d1
+	and.w	#$7f0,d0
+	lsr.w	#2,d0
+	and.w	#$e,d1
+	lsl.w	#8,d1
+	lsl.w	#1,d1
+	or.w	d1,d0
+
+	endc
 
 	move.w	d0,d1
 	lsr.w	#1,d1
@@ -1926,7 +1952,7 @@ sin1024:
 	incbin	sin1024.bin
 
 sin1024_6	dcb.w	1024*2,0
-hdist_pattern	dcb.w	1024*2,0
+vdist_pattern	dcb.w	1024*2,0
 sin1024_15	dcb.w	1024,0
 
 HSKIP	EQU	2*2
@@ -1953,9 +1979,9 @@ vbounce_idx_next_vbl	dc.w	0
 
 	
 	
-VSKIP	EQU	2*2
+VSKIP	EQU	2*1
 	;; Make sure 4*VSKIP*VDIST_LEN is a multiple of 1024 (one sine period)
-VDIST_LEN	EQU	512/4
+VDIST_LEN	EQU	512/4*2
 	
 vdist_idx	dc.w	0+64
 	;; 2x4 subpixel buffers, VDIST_LEN, 2x wrap protection, 1.5w per entry (3 per 2 nibbles)
@@ -1980,6 +2006,7 @@ scrolltext
 	dc.b	"source code and more info on github (sigfridsson:paradst2) "
 	dc.b	"                   "
 	dc.b	-1
+	even
 scrolltext_end:
 ;	rept 20
 ;	dc.l	8,9,10,11
