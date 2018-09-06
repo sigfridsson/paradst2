@@ -1654,8 +1654,8 @@ draw_scroll:
 	move.l	a5,hdist_ptr
 
 
-	move.b	#0,$FFFF8265.w	;pix-scroll
-	move.b	#(LINEWIDTH-224)/2-4,$FFFF820F.w	;skip
+;	move.b	#0,$FFFF8265.w	;pix-scroll
+;	move.b	#(LINEWIDTH-224)/2-4,$FFFF820F.w	;skip
 
 	move.l	screen_ptr,d0
 	lsr.l	#8,d0
@@ -1799,7 +1799,7 @@ PUSH_VDIST	MACRO
 	addq.l	#4,sp		;code for reset etc
 	ENDM
 
-	PUSH_VDIST	4+2+4+4	;noreset, skip right border
+	PUSH_VDIST	4+2+4+4+4	;noreset, skip right border, skip first hksip
 	PUSH_VDIST	4
 	PUSH_VDIST	4
 	PUSH_VDIST	4
@@ -1886,7 +1886,8 @@ remove_top_border:
 	addq.b	#1,d7
 	lsr.b	#1,d3
 ;	neg.b	d3
-	add.b	#(256-160)/2,d3
+	add.b	#(256-160)/2-4,d3
+;	add.b	2(a5),d3
 	move.b	d3,$ffff820f.w ;3n  first line offset
 
 	move.w	#$2100,sr			;Enable HBL
@@ -1914,11 +1915,12 @@ remove_top_border:
 ;	move.b	d7,$ffff8207.w ;16, back up to top (3 lines)
 	;; d7 3->2
 	subq.w	#1,d7
-	dcb.w	27+6,$4e71			;Time for user to set up registers etc
+	dcb.w	27+6-2+4+4,$4e71			;Time for user to set up registers etc
 
 	move.l	(sp)+,a0
 
 	add.w	(a5)+,a6	  ;12c/3n
+	addq.l	#1,a5		; skip hskip
 ;	move.b	d3,$ffff8209.w ;3n  first line offset
 
 	jmp	(a0)
