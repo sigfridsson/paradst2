@@ -181,6 +181,10 @@ DBG_C0	MACRO
 
 	ENDM
 
+NOPS	MACRO
+	dcb	(\1)/2,$8080
+	dcb	(\1)%2,$4e71
+	ENDM
 
 	section	text
 
@@ -1335,78 +1339,60 @@ NOPS_LEFT	set	NOPS_LEFT-6
 
 	ENDM
 	
-	;; a3 char pointers to font
-	;; a0-a1 mask1-2
-	;; a4 output (screen)
-	;; a2 dist offsets
-	;; char setup 12n
-;; draw_char8	MACRO
-;; 	move.l	(a3)+,a0	;3n
-;; 	move.l	(a3)+,a1	;3n
-	
-;; 	add.w	(a2)+,a0	;3n
-;; 	add.w	(a2)+,a1	;3n
 
-;; 	copy3x7
-;; 	ENDM
-
-
-COPY_COLORSa18	MACRO
-	add.w	(a5)+,a6	  ;12c/3n
-	movem.l	(a6)+,d0-d3	;44c/11n
-	move.l	d0,$ffff8250.w ;16c/4n
-	ENDM
-COPY_COLORSb9	MACRO
-	movem.l	d1-d3,$ffff8254.w	    ;36c/9n
-	ENDM
-
-COPY_COLORSa14	MACRO
-	add.w	(a5)+,a6	  ;12c/3n
-	movem.l	(a6)+,d0-d3	;44c/11n
-	ENDM
-COPY_COLORSb11	MACRO
-	movem.l	d0-d3,$ffff8250.w	    ;44c/11n
-	ENDM
-	
 
 OPEN_BORDERS	MACRO
 	add.w	(a5)+,a6	  ;12c/3n
+	move.b	(a5)+,$ffff820f.w	;4n, hskip
 	move.w	d7,$ffff820a.w			;3 Right border
 	move.b	d7,$ffff820a.w			;3
 
-	;; 26
-	;; COPY_COLORSa18
-	;; dcb	4,$4e71
-	move.b	(a5)+,$ffff820f.w	;16, hskip
 	movem.l	(a6)+,d0-d3	;44c/11n
 	movem.l	d0-d3,$ffff8250.w ;11n
+	move.b	(a5)+,$ffff8265.w	;4n, hscroll
 
 	move.b	d7,$ffff8260.w			;3n Left border
 	move.w	d7,$ffff8260.w			;3n
-	move.b	(a5)+,$ffff8265.w	;16, hscroll
 NOPS_LEFT	set	128-45
 	ENDM
 
-OPEN_BORDERS_lower	MACRO
+; Must be called 4 nops earlier than OPEN_BORDERS
+OPEN_BORDERS_reset	MACRO
 	add.w	(a5)+,a6	  ;12c/3n
-	move.l	(a6)+,d0	  ;3n, fetch first color
-	move.w	d7,$ffff820a.w			;3 Right border
-	move.b	d7,$ffff820a.w			;3
-
-	;; 26
-	move.b	(a5)+,$ffff820f.w	;4n, hskip
-	movem.l	(a6)+,d1-d3	;9n
-	nop
-	movem.l	d0-d2,$ffff8250.w ;9n
-	move.w	d7,$ffff820a.w			;3 lower border
+	move.b	(a5)+,$ffff820f.w	;16, hskip
+	move.l	(a6)+,d0		;3n
+	lea	$ffff820a.w,a0		;2
+	move.w	d7,(a0)			;2 Right border
+	move.b	d7,(a0)			;2
+	move.l	(a6)+,d1		;3n
+	move.l	(a6)+,d2		;3n
+	move.l	(a6)+,d3		;3n
+	move.b	d7,$ffff8207.w ;3n 4b, back up to top
+	movem.l	d0-d3,$ffff8250.w ;11n
+	move.b	(a5)+,$ffff8265.w	;4n, hscroll
 
 	move.b	d7,$ffff8260.w			;3n Left border
 	move.w	d7,$ffff8260.w			;3n
+NOPS_LEFT	set	128-45
+ENDM
+
+OPEN_BORDERS_lower	MACRO
+	add.w	(a5)+,a6	  ;12c/3n
+	move.b	(a5)+,$ffff820f.w	;4, hskip
+	move.w	d7,$ffff820a.w			;3 Right border
+;	move.b	d7,$ffff820a.w			;3 don't go back to 50 Hz just yet
+	NOPS	3
+
+	;; 26
+	movem.l	(a6)+,d0-d3	;11n
+	movem.l	d0-d3,$ffff8250.w ;11n
 	move.b	(a5)+,$ffff8265.w	;4n, hscroll
-	move.l	d3,$ffff825c.w	    ;4n
-	move.b	d7,$ffff820a.w			;3, lower border
+
+	move.b	d7,$ffff8260.w			;3n Left border
+	move.w	d7,$ffff8260.w			;3n
+	move.b	d7,$ffff820a.w			;3, lower border, restore 50 Hz
 	;; don't count the 3 extra nops earlier - must start OPEN_BORDERS_lower 3 nops early
-NOPS_LEFT	set	128-52
+NOPS_LEFT	set	128-48
 	ENDM
 
 rbstart:
@@ -1426,80 +1412,83 @@ rbend:
 
 	;; 4 scanlines to copy 20 lines of an 8 pixel strip
 lower_border:
+NOPS_LEFT	set	128-45-4
+;	OPEN_BORDERS
+	NOPS	NOPS_LEFT	;224
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;224
+	NOPS	NOPS_LEFT	;225
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;225
+	NOPS	NOPS_LEFT	;226
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;226
-	OPEN_BORDERS
-	dcb	NOPS_LEFT-3,$4e71	;227
+	NOPS	NOPS_LEFT	;227
 	OPEN_BORDERS_lower
-	dcb	NOPS_LEFT,$4e71	;228
+	NOPS	NOPS_LEFT	;228
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;229
+	NOPS	NOPS_LEFT	;229
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;230
+	NOPS	NOPS_LEFT	;230
 	OPEN_BORDERS
-	dcb	NOPS_LEFT-4,$4e71	;231
+;	NOPS	NOPS_LEFT-4	;231
+	NOPS	NOPS_LEFT	;231
+	OPEN_BORDERS
 	rts
 
 	;; start at 248+1
 	;; reset at 260
 empty_lines:
+NOPS_LEFT	set	128-45-4
+;	OPEN_BORDERS
+	NOPS	NOPS_LEFT	;249
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;249
+	NOPS	NOPS_LEFT	;250
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;250
+	NOPS	NOPS_LEFT	;251
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;251
+	NOPS	NOPS_LEFT	;252
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;252
+	NOPS	NOPS_LEFT	;253
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;253
+	NOPS	NOPS_LEFT	;254
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;254
+	NOPS	NOPS_LEFT	;255
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;255
+	NOPS	NOPS_LEFT	;256
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;256
+	NOPS	NOPS_LEFT	;257
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;257
+	NOPS	NOPS_LEFT	;258
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;258
+	NOPS	NOPS_LEFT	;259
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;259
+	NOPS	NOPS_LEFT-4	;260   reset
+	OPEN_BORDERS_reset
+	NOPS	NOPS_LEFT	;261
 	OPEN_BORDERS
-	dcb	NOPS_LEFT-3,$4e71	;260
-	move.b	d7,$ffff8207.w ;3n 4b, back up to top
+	NOPS	NOPS_LEFT	;262
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;261
+	NOPS	NOPS_LEFT	;263
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;262
+	NOPS	NOPS_LEFT	;264
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;263
+	NOPS	NOPS_LEFT	;265
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;264
+	NOPS	NOPS_LEFT	;266
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;265
+	NOPS	NOPS_LEFT	;267
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;266
+	NOPS	NOPS_LEFT	;268
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;267
+	NOPS	NOPS_LEFT	;269
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;268
+	NOPS	NOPS_LEFT	;270
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;269
+	NOPS	NOPS_LEFT	;271
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;270
+	NOPS	NOPS_LEFT	;272
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;271
+	NOPS	NOPS_LEFT	;273
 	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;272
-	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;273
-	OPEN_BORDERS
-	dcb	NOPS_LEFT,$4e71	;274
+	NOPS	NOPS_LEFT	;274
 	OPEN_BORDERS
 	rts
 
@@ -1509,26 +1498,23 @@ LINOFFSET2	SET	20
 	rept	20
 	INLINE
 .draws_start:
-	;;  418 bytes
-	;; bra.s	.noreset		;3n 2b
-	move.b	d7,$ffff8207.w ;3n 4b, back up to top
-.noreset:
-	
-	OPEN_BORDERS
+;	OPEN_BORDERS
+NOPS_LEFT	set	128-45-4
+
 	CHAR_SETUP_6
 LINOFFSET	SET	LINOFFSET2
 	COPY5_63
-	dcb	NOPS_LEFT,$4e71
+	NOPS	NOPS_LEFT
 	OPEN_BORDERS
 	
 LINOFFSET	SET	LINOFFSET+5
 	COPY5_63
-	dcb	NOPS_LEFT,$4e71
+	NOPS	NOPS_LEFT
 	OPEN_BORDERS
 	
 LINOFFSET	SET	LINOFFSET+5
 	COPY5_63
-	dcb	NOPS_LEFT,$4e71
+	NOPS	NOPS_LEFT
 	OPEN_BORDERS		;NOPS_LEFT gets reset
 	
 LINOFFSET	SET	LINOFFSET+5
@@ -1547,22 +1533,27 @@ DRAW_LEN	SET	.draws_end-.draws_start
 LINOFFSET2	SET	LINOFFSET2-1
 	endr
 
+NOPS_LEFT_pause	SET	NOPS_LEFT
 draw_pause_noreset1:
 	addq.w	#1,a4
-	dcb	NOPS_LEFT-2-4-4,$4e71
+	NOPS	NOPS_LEFT_pause-2-4
+	OPEN_BORDERS
 	rts
 draw_pause_noreset7:
 	addq.w	#7,a4
-	dcb	NOPS_LEFT-2-4-4,$4e71
+	NOPS	NOPS_LEFT_pause-2-4
+	OPEN_BORDERS
 	rts
 
 draw_pause_reset1:
 	addq.w	#1,a4
-	dcb	NOPS_LEFT-2-4-3-4,$4e71
+	NOPS	NOPS_LEFT_pause-2-4-4
+	OPEN_BORDERS_reset
 	rts
 draw_pause_reset7:
 	addq.w	#7,a4
-	dcb	NOPS_LEFT-2-4-3-4,$4e71
+	NOPS	NOPS_LEFT_pause-2-4-4
+	OPEN_BORDERS_reset
 	rts
 	
 draw_ptrs:
@@ -1799,24 +1790,25 @@ PUSH_VDIST	MACRO
 	addq.l	#4,sp		;code for reset etc
 	ENDM
 
-	PUSH_VDIST	4+2+4+4+4	;noreset, skip right border, skip first hksip
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
+;PUSH_VDIST	2+4+4+4	;skip right border, skip first hksip
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
 
 C10	MACRO
 	PUSH_VDIST	0	;reset
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
 	
 	PUSH_VDIST	0	;reset
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
-	PUSH_VDIST	4
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
+	PUSH_VDIST	0
 	ENDM
 
 	C10
@@ -1827,19 +1819,19 @@ C10	MACRO
 
 	PUSH_VDIST	0	;224 lines, 56 chars
 	addq.l	#4,sp		;lower border, 8 lines
-	PUSH_VDIST	4	;236/57
-	PUSH_VDIST	4	;240/58
+	PUSH_VDIST	0	;236/57
+	PUSH_VDIST	0	;240/58
 
 	PUSH_VDIST	0	;59/244 reset
-	PUSH_VDIST	4	;60/248
+	PUSH_VDIST	0	;60/248
 	ifeq	1
-	PUSH_VDIST	4	;61/252
-	PUSH_VDIST	4	;62/256
-	PUSH_VDIST	4	;63/260
+	PUSH_VDIST	0	;61/252
+	PUSH_VDIST	0	;62/256
+	PUSH_VDIST	0	;63/260
 	endc
 
 	move.l	#empty_lines,(sp)+
-	
+
 	;; sub.l	#(58)*6,a2
 
 	move.l	#return_from_callstack,(sp)+
@@ -1895,10 +1887,10 @@ remove_top_border:
 	move.w	#$2700,sr			;Stop all interrupts
 	clr.b	$fffffa19.w			;Stop Timer A
 
-	dcb.w 	84,$4e71			;Have fun for a bit
+	NOPS 	84
 
 	move.b	#0,$ffff820a.w			;Remove the top border
-	dcb.w 	9,$4e71				;
+	NOPS 	9
 	move.b	#2,$ffff820a.w			;
 	move.l	#call_stack,sp
 	
@@ -1915,15 +1907,28 @@ remove_top_border:
 ;	move.b	d7,$ffff8207.w ;16, back up to top (3 lines)
 	;; d7 3->2
 	subq.w	#1,d7
-	dcb.w	27+6-2+4+4,$4e71			;Time for user to set up registers etc
+	NOPS	27+6-2+4+4+5-4
 
-	move.l	(sp)+,a0
+	ifeq	1
+	move.l	(sp)+,a0	;3n
 
 	add.w	(a5)+,a6	  ;12c/3n
-	addq.l	#1,a5		; skip hskip
-;	move.b	d3,$ffff8209.w ;3n  first line offset
+	addq.l	#1,a5		; 2n, skip hskip
 
-	jmp	(a0)
+	jmp	(a0)		;2n
+	else
+	add.w	(a5)+,a6	  ;12c/3n
+	addq.l	#1,a5		; 2n, skip hskip
+
+	movem.l	(a6)+,d0-d3	;44c/11n
+	movem.l	d0-d3,$ffff8250.w ;11n
+	move.b	(a5)+,$ffff8265.w	;4n, hscroll
+
+	move.b	d7,$ffff8260.w			;3n Left border
+	move.w	d7,$ffff8260.w			;3n
+	rts		;4n
+	endc
+
 return_from_callstack:	
 	move.l	my_stack,sp
 
